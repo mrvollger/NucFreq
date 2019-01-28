@@ -14,12 +14,12 @@ import matplotlib.pyplot as plt
 import pysam
 import pandas as pd
 
-bam = pysam.AlignmentFile(args.infile, "rb")
+bam = pysam.AlignmentFile(args.infile)
 refs = bam.references
 
 
 def getCovByBase(contig):
-	coverage = bam.count_coverage(contig, quality_threshold = -1)
+	coverage = bam.count_coverage(contig, quality_threshold = None)
 	assert len(coverage) == 4
 	cov = {}
 	cov["A"] = coverage[0]
