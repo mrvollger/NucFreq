@@ -10,6 +10,7 @@ parser.add_argument('-a', help="output all positions", action="store_true", defa
 parser.add_argument('-r', '--repeatmasker', help="rm out to add to plot", type=argparse.FileType('r') , default=None)
 parser.add_argument('-y', '--ylim', help="max y axis limit", type=float , default=None)
 parser.add_argument('--header', action="store_true", default=False)
+parser.add_argument("--psvsites", help="CC/mi.gml.sites", default=None)
 parser.add_argument('-s', '--soft', action="store_true", default=False)
 parser.add_argument('-c', '--minclip', help="min number of clippsed bases in order to be displayed", type=float , default=1000)
 args = parser.parse_args()
@@ -74,7 +75,7 @@ for read in bam.fetch(until_eof=True):
 
 
 def getCovByBase(contig, start, end):
-	coverage = bam.count_coverage(contig, quality_threshold = None, start=start, stop=end)
+	coverage = bam.count_coverage(contig, quality_threshold = None, start=start, stop=end, read_callback="nofilter")
 	assert len(coverage) == 4
 	cov = {}
 	cov["A"] = coverage[0]
@@ -102,6 +103,7 @@ df["first"] = sort[:,0]
 df["second"] = sort[:,1]
 df["third"] = sort[:,2]
 df["fourth"] = sort[:,3]
+df.sort_values(by=["contig", "position", "second"], inplace=True)
 
 
 soft = pd.DataFrame(soft, columns=["contig", "side", "value", "position", "read"])
@@ -136,7 +138,6 @@ if(args.repeatmasker is not None):
 
 
 
-
 counter = 0
 for contig, group in df.groupby(by="contig"):
 	print(contig)
@@ -147,6 +148,8 @@ for contig, group in df.groupby(by="contig"):
 
 	matplotlib.rcParams.update({'font.size': 18})
 	fig, ax = plt.subplots( figsize=(16,9) )
+
+
 
 	if(RM is not None):
 		rmax = ax
@@ -175,10 +178,10 @@ for contig, group in df.groupby(by="contig"):
 		xlabels = [format(label, ',.0f') for label in ax.get_xticks()]
 		lab = "bp"
 	elif( maxval < 10000000):
-		xlabels = [format(label/1000, ',.0f') for label in ax.get_xticks()]
+		xlabels = [format(label/1000, ',.1f') for label in ax.get_xticks()]
 		lab = "kbp"
 	else:
-		xlabels = [format(label/1000000, ',.1f') for label in ax.get_xticks()]
+		xlabels = [format(label/1000000, ',.2f') for label in ax.get_xticks()]
 		lab = "Mbp"
 
 	if(args.ylim is not None):
@@ -220,6 +223,21 @@ for contig, group in df.groupby(by="contig"):
 			axsoft.tick_params(axis='y', colors=color)
 			axsoft.set_ylabel('Clipped Bases (kbp)', color=color)
 
+
+	if(args.psvsites is not None):
+		cuts = {}
+		for idx, line in enumerate(open(args.psvsites).readlines()):
+			try:	
+				vals = line.strip().split()
+				cuts[idx] = list(map(int, vals))
+				#make plot
+				x = np.array(cuts[idx]) -1
+				idxs = (np.isin(truepos, x))
+				y = second[ idxs ]
+				ax.plot(x,y, alpha=0.5) #, label="group:{}".format(idx) )
+			except Exception as e:
+				print("Skipping because error: {}".format(e), file=sys.stderr)
+				continue
 
 	outpath = os.path.abspath(args.outfile)
 	mydir = os.path.dirname(outpath) 
