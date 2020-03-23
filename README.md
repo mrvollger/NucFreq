@@ -1,6 +1,6 @@
 # Nucfreq plots
 Script for making nucleotide frequency plots 
-![clean](imgs/clean.png)
+![clean](imgs/image.png)
 
 # Usage 
 ```
