@@ -1,5 +1,7 @@
 # Nucfreq plots
 Script for making nucleotide frequency plots 
+![clean](imgs/clean.png)
+
 # Usage 
 ```
 usage: NucPlot.py [-h] [-d] [--legend] [--zerostart] [-a] [-r REPEATMASKER]

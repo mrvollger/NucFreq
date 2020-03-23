@@ -6,6 +6,7 @@ parser = argparse.ArgumentParser(description="", formatter_class=argparse.Argume
 parser.add_argument("infile",  help="input bam file") #,  type=argparse.FileType('r'), default=sys.stdin)
 parser.add_argument("outfile",  help="output plot file")
 parser.add_argument('-d', action="store_true", default=False)
+parser.add_argument('--legend', action="store_true", default=False)
 parser.add_argument('--zerostart', action="store_true", default=False)
 parser.add_argument('-a', help="output all positions", action="store_true", default=False)
 parser.add_argument('-r', '--repeatmasker', help="rm out to add to plot", type=argparse.FileType('r') , default=None)
@@ -122,7 +123,7 @@ def getCovByBase(contig, start, end):
 #
 #nf = []
 nf = {"contig":[], "position":[], "A":[], "C":[], "G":[], "T":[], "group":[]}
-group = 0
+GROUPS = 0
 for contig, start, end  in regions:
 	#start, end = refs[contig]
 	sys.stderr.write("Reading in NucFreq from region: {}:{}-{}\n".format(contig,start,end))
@@ -132,10 +133,10 @@ for contig, start, end  in regions:
 		#for i in range(contiglen):
 		#	nf.append( [contig, start + i, cov["A"][i], cov["C"][i], cov["G"][i], cov["T"][i] ]   )
 		nf["contig"]+=[contig]*contiglen 
-		nf["group"] +=[group]*contiglen
+		nf["group"] +=[GROUPS]*contiglen
 		nf["position"]+=list(range(start, start+contiglen))
 		nf["A"] += cov["A"]; nf["C"] += cov["C"]; nf["G"] += cov["G"]; nf["T"] += cov["T"]
-		group += 1
+		GROUPS += 1
 	
 #df = pd.DataFrame(nf, columns=["contig", "position", "A", "C", "G", "T"])
 df = pd.DataFrame(nf)
@@ -178,23 +179,30 @@ if(args.repeatmasker is not None):
 	args.repeatmasker.close()
 
 
+sys.stderr.write("Plotting {} regions in {}\n".format(GROUPS, args.outfile))
+# SET up the plot based on the number of regions 
+HEIGHT=GROUPS*args.height
+# set text size
+matplotlib.rcParams.update({'font.size': 16})
+# make axes 
+fig, axs = plt.subplots(nrows=GROUPS, ncols=1, figsize=(args.width, HEIGHT) )
+if(GROUPS==1): axs = [axs]
+# make space for the bottom label of the plot
+#fig.subplots_adjust(bottom=0.2)
+# set figure YLIM
+YLIM = int(max(df["first"])*1.05)
 
+# iterate over regions
 counter = 0
 for group_id, group in df.groupby(by="group"):
 	contig = list(group.contig)[0]
-	print(contig)
 	
 	truepos = group.position.values
 	first = group["first"].values
 	second = group["second"].values
 
-	matplotlib.rcParams.update({'font.size': 16})
-	#plt.rcParams['axes.labelweight'] = 'bold'
-	fig, ax = plt.subplots( figsize=(args.width, args.height) )
-	# make space for the bottom label of the plot
-	fig.subplots_adjust(bottom=0.2)
-	# test
-
+	# get the correct axis 
+	ax = axs[group_id]
 
 
 	if(RM is not None):
@@ -221,7 +229,12 @@ for group_id, group in df.groupby(by="group"):
 	maxval = max(truepos)
 	minval = min(truepos)
 	subval = 0
-	sys.stderr.write("{}:{}-{}\n".format(contig, maxval, minval))
+
+	title = "{}:{}-{}\n".format(contig, minval, maxval)
+	if(GROUPS > 1):
+		ax.set_title(title, fontweight='bold')
+	sys.stderr.write(title)
+	
 	if(args.zerostart):
 		subval = minval - 1 
 		ax.set_xticks(  [ x for x in ax.get_xticks() if (x - subval > 0) and (x < maxval)  ] )
@@ -243,6 +256,8 @@ for group_id, group in df.groupby(by="group"):
 
 	if(args.ylim is not None):
 		ax.set_ylim(0, args.ylim)
+	else:
+		ax.set_ylim(0, YLIM)
 
 	ax.set_xlabel('Assembly position ({})'.format(lab), fontweight='bold')
 	ax.set_ylabel('Sequence read depth', fontweight='bold')
@@ -257,10 +272,11 @@ for group_id, group in df.groupby(by="group"):
 	# Only show ticks on the left and bottom spines
 	ax.yaxis.set_ticks_position('left')
 	ax.xaxis.set_ticks_position('bottom')
-
-	lgnd = plt.legend(loc="upper right")
-	for handle in lgnd.legendHandles:
-		handle._sizes = ([300.0])
+	
+	if(counter == 0 and args.legend):
+		lgnd = plt.legend(loc="upper right")
+		for handle in lgnd.legendHandles:
+			handle._sizes = ([300.0])
 
 	if(args.soft ):
 		tmpsoft = soft[ soft.contig == contig ]
@@ -296,16 +312,18 @@ for group_id, group in df.groupby(by="group"):
 				print("Skipping because error: {}".format(e), file=sys.stderr)
 				continue
 
-	outpath = os.path.abspath(args.outfile)
-	if(counter == 0):
-		outf = 	outpath
-	else:
-		name, ext = os.path.splitext(outpath) 
-		outf = "{}_{}{}".format(name, counter + 1, ext)
+	#outpath = os.path.abspath(args.outfile)
+	#if(counter == 0):
+	#	outf = 	outpath
+	#else:
+	#	name, ext = os.path.splitext(outpath) 
+	#	outf = "{}_{}{}".format(name, counter + 1, ext)
 
-	plt.savefig(outf, dip=1200)
+	#plt.savefig(outf, dip=1200)
 	counter += 1
 
+plt.tight_layout()
+plt.savefig(args.outfile, dip=1200)
 
 
 
