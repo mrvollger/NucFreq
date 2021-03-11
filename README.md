@@ -57,5 +57,7 @@ NucPlot.py --obed {output.bed} --bed {region.bed} --minobed 2 {input.bam} {outpu
 ```
    The resulting bed file was used to identify regions where the second most common base
    was present in at least 10% of reads, and this occurred in at least five positions
-   within each region using the script `HetDetection.R`.
+   within each region using the script `HetDetection.R`. 
+
+Section and code written by G. Logsdon. 
 
