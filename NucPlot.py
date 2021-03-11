@@ -328,7 +328,7 @@ for group_id, group in df.groupby(by="group"):
             axsoft.set_ylabel('Clipped Bases (kbp)', color=color)
 
 
-    if(args.psvsites is not None):
+    if(args.psvsites is not None): #and len(args.psvsites)>0):
         cuts = {}
         for idx, line in enumerate(open(args.psvsites).readlines()):
             try:  
