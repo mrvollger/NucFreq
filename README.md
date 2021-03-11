@@ -1,4 +1,4 @@
-# Nucfreq plots
+# NucFreq plots
 Script for making nucleotide frequency plots 
 ![clean](imgs/image.png)
 
@@ -39,4 +39,23 @@ optional arguments:
                         min number of clippsed bases in order to be displayed
                         (default: 1000)
 ```
-                        
+      
+## Detecting heterozygous sites with NucFreq
+In order to detect heterozygous sites in centromeric regions, 
+   we first aligned CHM13 PacBio HiFi reads to the entire CHM13 v1.0 assembly using
+   pbmm2 and the following parameters: 
+```
+pbmm2 align --log-level DEBUG --preset SUBREAD --min-length 5000 -j 8
+```
+   Then, we filtered the alignments to remove secondary and partial alignment using SAMtools
+   flag 2308, generating a BAM file with genome-wide alignments.
+   Then, we filtered the BAM to only the cenhap regions using SAMtools.
+   We used `NucPlot.py` to determine the frequency of the first and second most
+   common bases in the aligned PacBio HiFi reads with the following command:
+```
+NucPlot.py --obed {output.bed} --bed {region.bed} --minobed 2 {input.bam} {output.png}
+```
+   The resulting bed file was used to identify regions where the second most common base
+   was present in at least 10% of reads, and this occurred in at least five positions
+   within each region using the script `HetDetection.R`.
+
