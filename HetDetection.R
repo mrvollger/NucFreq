@@ -26,8 +26,13 @@ colnames(df) <- cols
 #determine the ratio of the first and second most common bases
 df$het_ratio = round(df$second/(df$first+df$second)*100, 1)
 ​
+#filter if the het ratio is >= 10%
+df1 = df %>% 
+  group_by(chr) %>% 
+  filter(het_ratio >= 10)
+​
 #calculate the distance (in bp) between consecutive positions
-df = df %>%
+df2 = df1 %>%
   group_by(chr) %>%
   mutate(distance = start - lag(start, default = start[1]))
 ​
@@ -36,53 +41,65 @@ shift <- function(x, n){
   c(x[-(seq(n))], rep(NA, n))
 }
 ​
-df$distance <- shift(df$distance, 1)
+df2$distance <- shift(df2$distance, 1)
 ​
-#filter those with a distance <=500 bp (i.e. the het must have another base change within 500 bp)
-df = df %>% 
+#filter rows with a distance <=500 bp between positions (i.e. the het must have another base change within 500 bp)
+df3 = df2 %>% 
   group_by(chr) %>% 
   filter(distance <= 500)
-df = df %>%
+df3 = df3 %>%
   group_by(chr) %>%
   mutate(distance2 = start - lag(start, default = start[1]))
+df3$distance2 <- shift(df3$distance2, 1)
+​
+#duplicate top row and change its distance to 501 bp (to get rows in register)
+df4 = df3 %>% 
+  group_by(chr) %>% 
+  filter(row_number() <= 1) %>% 
+  bind_rows(df3)
+df5 = df4 %>%
+  arrange(start, .by_group = TRUE) %>%
+  mutate(distance2 = replace(distance2, row_number() == 1, 501))
+​
+#shift up the end column to get the range of the hets on one row
+df5$end <- shift(df5$end, 1)
 ​
 #filter only if there are 5 consecutive rows of distance <=500 bp (i.e. the het must have 5 base changes within 500 bp)
-r <- with(with(df, rle(distance2<=500)),rep(lengths,lengths))
-df$het <- with(df,distance2<=500) & (r>5)
-df$het <- shift(df$het, 1)
+r <- with(with(df5, rle(distance2<=500)),rep(lengths,lengths))
+df5$het <- with(df5,distance2<=500) & (r>=4)
 ​
 #filter the row if it contains a het
-het_df <- filter(df, het == "TRUE")
+df6 <- filter(df5, het == "TRUE")
 ​
 ###determine the max and min coordinates of a region with a distance <= 500 bp
 ​
 #get the min and max coordinates
-het_df = het_df %>% 
+het_df = df6 %>%
+  group_by(chr) %>%
+  mutate(distance3 = start - lag(start, default = start[1]))
+het_df$distance3 <- shift(het_df$distance3, 1)
+het_df2 = het_df %>% 
   group_by(chr) %>% 
-  filter((distance2 >= 500) | lead(distance2 >= 500) | (row_number() >= (n())) | (row_number() == 1) )
+  filter((distance3 >= 500) | lag(distance3 >= 500) | (row_number() >= (n())) | (row_number() == 1) )
 ​
 #shift the end column to have the min and max coordinates on one row
-het_df$end <- shift(het_df$end, 1)
+het_df2$end <- shift(het_df2$end, 1)
 ​
 #take every other row (1, 3, etc.)
-het_df = het_df %>%
+het_df3 = het_df2 %>%
   group_by(chr) %>% 
   filter(row_number() %% 2 == 1)
 ​
 #take the differences of the min and max coordinates
-het_df = het_df %>%
+het_df3 = het_df3 %>%
   group_by(chr) %>%
   mutate(het_length = end - start)
 ​
 #remove those with negative lengths
-het_df = het_df %>%
+het_df_filtered = het_df3 %>%
   select(chr, start, end, het_ratio, het_length) %>% 
   filter(het_length > 0)
 ​
-#filter if the het ratio is >= 10%
-het_df_filtered = het_df %>% 
-  group_by(chr) %>% 
-  filter(het_ratio >= 10)
-​
 #print the table
-write.table(het_df_filtered, "all.hets.winnowmap.greaterThan10.tbl", row.names = F, quote = F, sep="\t")
+write.table(het_df_filtered, "all.hets.winnowmap.greaterThan10_2.tbl", row.names = F, quote = F, sep="\t")
+

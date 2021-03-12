@@ -40,24 +40,32 @@ optional arguments:
                         (default: 1000)
 ```
       
-## Detecting heterozygous sites with NucFreq
-In order to detect heterozygous sites in centromeric regions, 
-   we first aligned CHM13 PacBio HiFi reads to the entire CHM13 v1.0 assembly using
-   pbmm2 and the following parameters: 
+
+### Detecting heterozygous sites with NucFreq
+In order to detect heterozygous sites genome-wide, we first aligned CHM13 PacBio
+HiFi reads to the entire CHM13 v1.0 assembly using pbmm2 or Winnowmap with the 
+following parameters: 
 ```
-pbmm2 align --log-level DEBUG --preset SUBREAD --min-length 5000 -j 8
+--log-level DEBUG --preset SUBREAD --min-length 5000 -j 8
 ```
-   Then, we filtered the alignments to remove secondary and partial alignment using SAMtools
-   flag 2308, generating a BAM file with genome-wide alignments.
-   Then, we filtered the BAM to only the cenhap regions using SAMtools.
-   We used `NucPlot.py` to determine the frequency of the first and second most
-   common bases in the aligned PacBio HiFi reads with the following command:
+for pbmm2 or 
+```
+--MD -W repetitive_k15.txt -Ha -x map-pb
+```
+for Winnowmap.
+
+Then, we filtered the alignments to remove secondary and partial alignment using SAMtools
+flag 2308. We used `NucPlot.py` to determine the frequency of the first and second most 
+common bases in the aligned PacBio HiFi reads with the following command: 
 ```
 NucPlot.py --obed {output.bed} --bed {region.bed} --minobed 2 {input.bam} {output.png}
 ```
-   The resulting bed file was used to identify regions where the second most common base
-   was present in at least 10% of reads, and this occurred in at least five positions
-   within each region using the script `HetDetection.R`. 
+Then, we used the resulting bed file and the `hetDetection.R` script
+to identify regions where the second most common base 
+was present in at least 10% of reads in at least 5 positions within a 500 bp region.
 
-Section and code written by G. Logsdon. 
+Section and `hetDetection.R` written by G. Logsdon. 
+
+
+
 
