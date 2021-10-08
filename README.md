@@ -66,6 +66,7 @@ was present in at least 10% of reads in at least 5 positions within a 500 bp reg
 
 Section and `hetDetection.R` written by G. Logsdon. 
 
-
+## TODO
+ - Make the colors of repeatmakser stable in NucPlot.py
 
 
