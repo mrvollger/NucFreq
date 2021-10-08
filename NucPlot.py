@@ -34,6 +34,7 @@ parser.add_argument(
     default=2,
 )
 parser.add_argument("-y", "--ylim", help="max y axis limit", type=float, default=None)
+parser.add_argument("-f", "--font-size", help="plot font-size", type=int, default=16)
 parser.add_argument("--freey", action="store_true", default=False)
 parser.add_argument("--height", help="figure height", type=float, default=4)
 parser.add_argument("-w", "--width", help="figure width", type=float, default=16)
@@ -50,7 +51,7 @@ parser.add_argument(
     default=1000,
 )
 args = parser.parse_args()
-
+sys.stderr.write(f"Using a font-size of {args.font_size}\n")
 
 import os
 import numpy as np
@@ -254,7 +255,7 @@ sys.stderr.write("Plotting {} regions in {}\n".format(GROUPS, args.outfile))
 # SET up the plot based on the number of regions
 HEIGHT = GROUPS * args.height
 # set text size
-matplotlib.rcParams.update({"font.size": 16})
+matplotlib.rcParams.update({"font.size": args.font_size})
 # make axes
 fig, axs = plt.subplots(nrows=GROUPS, ncols=1, figsize=(args.width, HEIGHT))
 if GROUPS == 1:
@@ -395,8 +396,9 @@ for group_id, group in df.groupby(by="group"):
     ax.set_xlabel("Assembly position ({})".format(lab), fontweight="bold")
     ax.set_ylabel("Sequence read depth", fontweight="bold")
 
-    ylabels = [format(label, ",.0f") for label in ax.get_yticks()]
-    ax.set_yticklabels(ylabels)
+    # Including this causes some internal bug in matplotlib when the font-size changes
+    # ylabels = [format(label, ",.0f") for label in ax.get_yticks()]
+    # ax.set_yticklabels(ylabels)
     ax.set_xticklabels(xlabels)
 
     # Hide the right and top spines
