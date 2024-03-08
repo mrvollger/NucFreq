@@ -1,105 +1,82 @@
-library(ggplot2)
-library(directlabels)
-library(plyr)
-require(gridExtra)
-require(scales)
-library(RColorBrewer)
-library(reshape2)
-library(data.table)
-library(dplyr)
-library(tidyr)
-library(zoo)
-​
-###change the working directory (2nd line) and saved file name (last line) before running###
-​
-#clear variables
-rm(list=ls(all=TRUE))
-​
-#set working directory
-setwd("~/Documents/Eichler Lab/Weekly plans/T2Tv1/Hets")
-​
+#This script filters the output by nucfreq and reports "regions where the second most common base was present in at least 10% of reads in at least 5 positions within a 500 bp region"
+
+require(tidyr)
+require(data.table)
+require(dplyr)
+
+# Check if any command line arguments are provided
+if(length(commandArgs(trailingOnly = TRUE)) == 0) {
+  stop("No filename provided. Please provide a filename as a command-line argument.")
+}
+
+# Get the filename from the command line
+filename <- commandArgs(trailingOnly = TRUE)[1]
+
+
 #load NucFreq bed file
-df = fread(file.choose(), stringsAsFactors = FALSE, fill=TRUE, quote="", header=FALSE, skip=2)
+df = read.table(filename, stringsAsFactors = FALSE, quote="", header=TRUE)
 cols =  c("chr", "start", "end", "first", "second")
 colnames(df) <- cols
-​
+
 #determine the ratio of the first and second most common bases
 df$het_ratio = round(df$second/(df$first+df$second)*100, 1)
-​
+
 #filter if the het ratio is >= 10%
-df1 = df %>% 
+df = df %>% 
   group_by(chr) %>% 
   filter(het_ratio >= 10)
-​
-#calculate the distance (in bp) between consecutive positions
-df2 = df1 %>%
+
+#calculate the distances betwen variants
+df <- df %>%
+  arrange(chr, start) %>%
   group_by(chr) %>%
-  mutate(distance = start - lag(start, default = start[1]))
-​
-#shift the distance column up one row
-shift <- function(x, n){
-  c(x[-(seq(n))], rep(NA, n))
-}
-​
-df2$distance <- shift(df2$distance, 1)
-​
-#filter rows with a distance <=500 bp between positions (i.e. the het must have another base change within 500 bp)
-df3 = df2 %>% 
-  group_by(chr) %>% 
-  filter(distance <= 500)
-df3 = df3 %>%
-  group_by(chr) %>%
-  mutate(distance2 = start - lag(start, default = start[1]))
-df3$distance2 <- shift(df3$distance2, 1)
-​
-#duplicate top row and change its distance to 501 bp (to get rows in register)
-df4 = df3 %>% 
-  group_by(chr) %>% 
-  filter(row_number() <= 1) %>% 
-  bind_rows(df3)
-df5 = df4 %>%
-  arrange(start, .by_group = TRUE) %>%
-  mutate(distance2 = replace(distance2, row_number() == 1, 501))
-​
-#shift up the end column to get the range of the hets on one row
-df5$end <- shift(df5$end, 1)
-​
-#filter only if there are 5 consecutive rows of distance <=500 bp (i.e. the het must have 5 base changes within 500 bp)
-r <- with(with(df5, rle(distance2<=500)),rep(lengths,lengths))
-df5$het <- with(df5,distance2<=500) & (r>=4)
-​
-#filter the row if it contains a het
-df6 <- filter(df5, het == "TRUE")
-​
-###determine the max and min coordinates of a region with a distance <= 500 bp
-​
-#get the min and max coordinates
-het_df = df6 %>%
-  group_by(chr) %>%
-  mutate(distance3 = start - lag(start, default = start[1]))
-het_df$distance3 <- shift(het_df$distance3, 1)
-het_df2 = het_df %>% 
-  group_by(chr) %>% 
-  filter((distance3 >= 500) | lag(distance3 >= 500) | (row_number() >= (n())) | (row_number() == 1) )
-​
-#shift the end column to have the min and max coordinates on one row
-het_df2$end <- shift(het_df2$end, 1)
-​
-#take every other row (1, 3, etc.)
-het_df3 = het_df2 %>%
-  group_by(chr) %>% 
-  filter(row_number() %% 2 == 1)
-​
-#take the differences of the min and max coordinates
-het_df3 = het_df3 %>%
-  group_by(chr) %>%
-  mutate(het_length = end - start)
-​
-#remove those with negative lengths
-het_df_filtered = het_df3 %>%
-  select(chr, start, end, het_ratio, het_length) %>% 
-  filter(het_length > 0)
-​
-#print the table
-write.table(het_df_filtered, "all.hets.winnowmap.greaterThan10_2.tbl", row.names = F, quote = F, sep="\t")
+  mutate(
+    lag_distance = lead(start) - end
+  )
+
+#is distance smaller than 500 bp? if yes, set to true
+df$closby<-df$lag_distance<=500 
+
+#the last rows are going to have NA, since there are more variants than distances
+#let's fill it with the value of the previous row
+df <- df %>%
+  fill(closby, .direction = "down")
+
+#count how many times you get consecutive TRUE or FALSE (looking for the consecutive small distances)
+#this is achieved using run-length encoding, and then expanding it so that the number of rows matches
+df$rle<-rep(rle(df$closby)$lengths,rle(df$closby)$lengths) 
+
+#assign a unique group id for each cluster, since the groups should not get mixed up
+df$group<-rleid(paste0(df$closby,df$rle))
+
+#only keep rows that belong to clusters
+df<-df[!df$closby==FALSE,]
+
+#only keep rows that cluster at least 5 variants
+df<-df[df$rle>=5,] 
+
+het_ratio_per_group <- df %>%
+  group_by(group) %>%
+  summarise(sum_second = sum(second),
+            sum_first = sum(first)) %>%
+  mutate(het_ratio = round(sum_second/(sum_first+sum_second)*100, 1))
+
+
+df_final <- df %>%
+  group_by(chr,group) %>%
+  filter(row_number() == 1 | row_number() == n()) %>%
+  summarise(start = first(start),
+            end = last(end))
+
+#calculate the lengths of het regions
+df_final$het_length<-df_final$end-df_final$start 
+
+#merge with the het frequency information
+df_table<-merge(df_final,het_ratio_per_group,by="group")
+
+#only keep start and end columns
+df_table<-df_table[,c("chr","start","end","het_ratio","het_length")]
+df_table<-na.omit(df_table)
+write.table(df_table, paste0(filename,"all.hets.filtering.tbl"), row.names = F, quote = F, sep="\t")
+
 
